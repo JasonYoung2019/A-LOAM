@@ -36,10 +36,13 @@
 
 
 #include <cmath>
+#include <cstddef>
+#include <memory>
 #include <vector>
 #include <string>
 #include "aloam_velodyne/common.h"
 #include "aloam_velodyne/tic_toc.h"
+#include "ros/message_traits.h"
 #include <nav_msgs/Odometry.h>
 #include <opencv/cv.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -50,6 +53,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <std_msgs/String.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
 
@@ -109,6 +113,26 @@ void removeClosedPointCloud(const pcl::PointCloud<PointT> &cloud_in,
     cloud_out.height = 1;
     cloud_out.width = static_cast<uint32_t>(j);
     cloud_out.is_dense = true;
+}
+
+sensor_msgs::PointCloud2::Ptr g_laserCloudOutMsg = NULL;
+sensor_msgs::PointCloud2::Ptr g_cornerPointsSharpMsg = NULL;
+sensor_msgs::PointCloud2::Ptr g_cornerPointsLessSharpMsg = NULL;
+sensor_msgs::PointCloud2::Ptr g_surfPointsFlat2 = NULL;
+sensor_msgs::PointCloud2::Ptr g_surfPointsLessFlat2 = NULL;
+
+
+void pubResultHandler(const std_msgs::StringConstPtr &StrMsg)
+{
+    pubLaserCloud.publish(*g_laserCloudOutMsg);
+
+    pubCornerPointsSharp.publish(*g_cornerPointsSharpMsg);
+
+    pubCornerPointsLessSharp.publish(*g_cornerPointsLessSharpMsg);
+
+    pubSurfPointsFlat.publish(*g_surfPointsFlat2);
+
+    pubSurfPointsLessFlat.publish(*g_surfPointsLessFlat2);
 }
 
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
@@ -413,32 +437,38 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
     sensor_msgs::PointCloud2 laserCloudOutMsg;  // 前处理后 to msgs
     pcl::toROSMsg(*laserCloud, laserCloudOutMsg);
     laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
-    laserCloudOutMsg.header.frame_id = "/camera_init";
+    laserCloudOutMsg.header.frame_id = "camera_init";
     pubLaserCloud.publish(laserCloudOutMsg);
 
     sensor_msgs::PointCloud2 cornerPointsSharpMsg;  // 角点 to msgs
     pcl::toROSMsg(cornerPointsSharp, cornerPointsSharpMsg);
     cornerPointsSharpMsg.header.stamp = laserCloudMsg->header.stamp;
-    cornerPointsSharpMsg.header.frame_id = "/camera_init";
+    cornerPointsSharpMsg.header.frame_id = "camera_init";
     pubCornerPointsSharp.publish(cornerPointsSharpMsg);
 
     sensor_msgs::PointCloud2 cornerPointsLessSharpMsg;  // 弱角点 to msgs
     pcl::toROSMsg(cornerPointsLessSharp, cornerPointsLessSharpMsg);
     cornerPointsLessSharpMsg.header.stamp = laserCloudMsg->header.stamp;
-    cornerPointsLessSharpMsg.header.frame_id = "/camera_init";
+    cornerPointsLessSharpMsg.header.frame_id = "camera_init";
     pubCornerPointsLessSharp.publish(cornerPointsLessSharpMsg);
 
     sensor_msgs::PointCloud2 surfPointsFlat2;   // 面点 to msgs
     pcl::toROSMsg(surfPointsFlat, surfPointsFlat2);
     surfPointsFlat2.header.stamp = laserCloudMsg->header.stamp;
-    surfPointsFlat2.header.frame_id = "/camera_init";
+    surfPointsFlat2.header.frame_id = "camera_init";
     pubSurfPointsFlat.publish(surfPointsFlat2);
 
     sensor_msgs::PointCloud2 surfPointsLessFlat2;   // 弱面点 to msgs (弱面点：除了角点、弱角点和面点外的所有)
     pcl::toROSMsg(surfPointsLessFlat, surfPointsLessFlat2);
     surfPointsLessFlat2.header.stamp = laserCloudMsg->header.stamp;
-    surfPointsLessFlat2.header.frame_id = "/camera_init";
+    surfPointsLessFlat2.header.frame_id = "camera_init";
     pubSurfPointsLessFlat.publish(surfPointsLessFlat2);
+
+    g_laserCloudOutMsg = boost::make_shared<sensor_msgs::PointCloud2>(laserCloudOutMsg);
+    g_cornerPointsSharpMsg = boost::make_shared<sensor_msgs::PointCloud2>(cornerPointsSharpMsg);
+    g_cornerPointsLessSharpMsg = boost::make_shared<sensor_msgs::PointCloud2>(cornerPointsLessSharpMsg);
+    g_surfPointsFlat2 = boost::make_shared<sensor_msgs::PointCloud2>(surfPointsFlat2);
+    g_surfPointsLessFlat2 = boost::make_shared<sensor_msgs::PointCloud2>(surfPointsLessFlat2);
 
     // pub each scam
     if(PUB_EACH_LINE)   // pub 每个线号
@@ -476,6 +506,8 @@ int main(int argc, char **argv)
     }
 
     ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 100, laserCloudHandler);
+
+    ros::Subscriber subForPubResult = nh.subscribe<std_msgs::String>("/pubResults", 100, pubResultHandler);
 
     pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 100);
 
