@@ -260,7 +260,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
         }
 
         float relTime = (ori - startOri) / (endOri - startOri);
-        point.intensity = scanID + scanPeriod * relTime;    // 将时间经过变换存在intensity
+        point.intensity = scanID + scanPeriod * relTime;    // 将时间经过变换存在intensity--这里的scanID是整数部分；scanPeriod * relTime <= scanPeriod = 0.1，只能是小数，不会超过一，所以很聪明，一个变量保存了两个值
         laserCloudScans[scanID].push_back(point);
     }   // 大循环：计算angle/分线号/计算点云relTime
 
