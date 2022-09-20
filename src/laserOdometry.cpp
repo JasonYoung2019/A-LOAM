@@ -90,15 +90,15 @@ int laserCloudCornerLastNum = 0;    // 调试信息用
 int laserCloudSurfLastNum = 0;    // 调试信息用
 
 // Transformation from current frame to world frame
-Eigen::Quaterniond q_w_curr(1, 0, 0, 0);    // 姿态初始化，如果有imu或者ccslam已经给的值，可以用来作为初始值，效果理论上更好，所以多出来一条思路：就是使用ccslam的pos作为我们前端或者后端的初始值
-Eigen::Vector3d t_w_curr(0, 0, 0);  // 位移初始化
+Eigen::Quaterniond q_w_curr(1, 0, 0, 0);    // 世界坐标，姿态初始化，如果有imu或者ccslam已经给的值，可以用来作为初始值，效果理论上更好，所以多出来一条思路：就是使用ccslam的pos作为我们前端或者后端的初始值
+Eigen::Vector3d t_w_curr(0, 0, 0);  // 世界坐标，位置初始化
 
 // q_curr_last(x, y, z, w), t_curr_last
-double para_q[4] = {0, 0, 0, 1};    // 为了优化时兼容数据类型使用，就是q_w_curr
-double para_t[3] = {0, 0, 0};   // 为了优化时用，就是t_w_curr
+double para_q[4] = {0, 0, 0, 1};    // 为了优化时兼容数据类型使用，和q_last_curr映射到一个地址
+double para_t[3] = {0, 0, 0};   // 为了优化时用，和t_last_curr 映射到一个地址
 
-Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q); // 内存映射
-Eigen::Map<Eigen::Vector3d> t_last_curr(para_t);    // 内存映射
+Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q); // 内存映射；内容是当前帧到前一帧的q
+Eigen::Map<Eigen::Vector3d> t_last_curr(para_t);    // 内存映射；内容是当前帧到前一帧的t
 
 std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;    // 角点点云队列：存放 laserCloudSharpHandler 接到的 角点点云
 std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;    // 弱角点点云队列：存放 laserCloudLessSharpHandler 接到的 弱角点点云
@@ -134,10 +134,10 @@ void TransformToEnd(PointType const *const pi, PointType *const po)
 {
     // undistort point first
     pcl::PointXYZI un_point_tmp;
-    TransformToStart(pi, &un_point_tmp);
+    TransformToStart(pi, &un_point_tmp);    // un 是当前帧处理扭曲后，转换到当前帧开始，也就是last帧结束
 
-    Eigen::Vector3d un_point(un_point_tmp.x, un_point_tmp.y, un_point_tmp.z);
-    Eigen::Vector3d point_end = q_last_curr.inverse() * (un_point - t_last_curr);
+    Eigen::Vector3d un_point(un_point_tmp.x, un_point_tmp.y, un_point_tmp.z);   // 某点转换到当前帧开始时间时，对应的位置
+    Eigen::Vector3d point_end = q_last_curr.inverse() * (un_point - t_last_curr);   // 因为是相对的，所以，point_start = ori(0,0,0)； 然后这里公式使用错了？？？所以代码里面使用这个都没有让执行？？？！！！
 
     po->x = point_end.x();
     po->y = point_end.y();
@@ -551,12 +551,12 @@ int main(int argc, char **argv)
                 }
             }
 
-            pcl::PointCloud<PointType>::Ptr laserCloudTemp = cornerPointsLessSharp;
-            cornerPointsLessSharp = laserCloudCornerLast;
+            pcl::PointCloud<PointType>::Ptr laserCloudTemp = cornerPointsSharp;
+            cornerPointsSharp = laserCloudCornerLast;
             laserCloudCornerLast = laserCloudTemp;
 
-            laserCloudTemp = surfPointsLessFlat;
-            surfPointsLessFlat = laserCloudSurfLast;
+            laserCloudTemp = surfPointsFlat;
+            surfPointsFlat = laserCloudSurfLast;
             laserCloudSurfLast = laserCloudTemp;
 
             laserCloudCornerLastNum = laserCloudCornerLast->points.size();

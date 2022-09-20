@@ -26,16 +26,16 @@ struct LidarEdgeFactor
 		//Eigen::Quaternion<T> q_last_curr{q[3], T(s) * q[0], T(s) * q[1], T(s) * q[2]};
 		Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};
 		Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
-		q_last_curr = q_identity.slerp(T(s), q_last_curr);
-		Eigen::Matrix<T, 3, 1> t_last_curr{T(s) * t[0], T(s) * t[1], T(s) * t[2]};
+		q_last_curr = q_identity.slerp(T(s), q_last_curr);	// 从s计算差值的四元数，这里的q_last_curr是个局部变量
+		Eigen::Matrix<T, 3, 1> t_last_curr{T(s) * t[0], T(s) * t[1], T(s) * t[2]};	// 从s计算差值的位移
 
 		Eigen::Matrix<T, 3, 1> lp;
-		lp = q_last_curr * cp + t_last_curr;
+		lp = q_last_curr * cp + t_last_curr;	// 当前点p,换算到last的坐标系（时间和空间两个换算），和lpa、lpb到同一个坐标系下
 
-		Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);
-		Eigen::Matrix<T, 3, 1> de = lpa - lpb;
+		Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);	// cross 平行四边形面积
+		Eigen::Matrix<T, 3, 1> de = lpa - lpb;	// 底边
 
-		residual[0] = nu.x() / de.norm();
+		residual[0] = nu.x() / de.norm();	// 高（距离）的x
 		residual[1] = nu.y() / de.norm();
 		residual[2] = nu.z() / de.norm();
 
@@ -62,7 +62,7 @@ struct LidarPlaneFactor
 		  last_point_m(last_point_m_), s(s_)
 	{
 		ljm_norm = (last_point_j - last_point_l).cross(last_point_j - last_point_m);
-		ljm_norm.normalize();
+		ljm_norm.normalize();	// 平面的单位法向量
 	}
 
 	template <typename T>
@@ -82,9 +82,9 @@ struct LidarPlaneFactor
 		Eigen::Matrix<T, 3, 1> t_last_curr{T(s) * t[0], T(s) * t[1], T(s) * t[2]};
 
 		Eigen::Matrix<T, 3, 1> lp;
-		lp = q_last_curr * cp + t_last_curr;
+		lp = q_last_curr * cp + t_last_curr;	// 四棱锥的一条锥
 
-		residual[0] = (lp - lpj).dot(ljm);
+		residual[0] = (lp - lpj).dot(ljm);	// 锥在底面法向量的投影，也就是高（点到地面的距离）
 
 		return true;
 	}
@@ -141,7 +141,7 @@ struct LidarPlaneNormFactor
 struct LidarDistanceFactor
 {
 
-	LidarDistanceFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d closed_point_) 
+	LidarDistanceFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d closed_point_)
 						: curr_point(curr_point_), closed_point(closed_point_){}
 
 	template <typename T>
